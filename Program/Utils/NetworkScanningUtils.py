@@ -193,15 +193,22 @@ def DomainReserved(domain, log=True):
     except: pass
     return status, json_format
 
+def _ssl_scan_context(proto=None):
+    if proto is None:
+        ctx = ssl.create_default_context()
+    else:
+        ctx = ssl.SSLContext(proto)
+    ctx.check_hostname = False
+    ctx.verify_mode = ssl.CERT_NONE
+    return ctx
+
 def TargetSslCertificateInfo(domain, socket_timeout, log=True):
     cn = issuer = issuer_org = not_before = not_after = expired = not_yet_valid = None
     san = []
     json_format = None
 
     try:
-        ctx = ssl.create_default_context()
-        ctx.check_hostname = False
-        ctx.verify_mode = ssl.CERT_NONE
+        ctx = _ssl_scan_context()
 
         with socket.create_connection((domain, port_https), timeout=socket_timeout) as s:
             with ctx.wrap_socket(s, server_hostname=domain) as ssock:
@@ -244,9 +251,7 @@ def TargetSslKeyInfo(domain, socket_timeout, log=True):
     json_format = None
 
     try:
-        ctx = ssl.create_default_context()
-        ctx.check_hostname = False
-        ctx.verify_mode = ssl.CERT_NONE
+        ctx = _ssl_scan_context()
         with socket.create_connection((domain, port_https), timeout=socket_timeout) as s:
             with ctx.wrap_socket(s, server_hostname=domain) as ssock:
                 cert_bin = ssock.getpeercert(binary_form=True)
@@ -283,9 +288,7 @@ def TargetSslCipherInfo(domain, socket_timeout, log=True):
     json_format = None
 
     try:
-        ctx = ssl.create_default_context()
-        ctx.check_hostname = False
-        ctx.verify_mode = ssl.CERT_NONE
+        ctx = _ssl_scan_context()
 
         with socket.create_connection((domain, port_https), timeout=socket_timeout) as s:
             with ctx.wrap_socket(s, server_hostname=domain) as ssock:
@@ -329,9 +332,7 @@ def TargetSslTlsSupport(domain, socket_timeout, log=True):
                 results[name] = False
                 continue
             try:
-                ctx = ssl.SSLContext(proto)
-                ctx.check_hostname = False
-                ctx.verify_mode = ssl.CERT_NONE
+                ctx = _ssl_scan_context(proto)
                 with socket.create_connection((domain, port_https), timeout=socket_timeout) as s:
                     with ctx.wrap_socket(s, server_hostname=domain):
                         results[name] = True
@@ -367,9 +368,7 @@ def TargetSslOcspStapling(domain, socket_timeout, log=True):
     json_format = None
 
     try:
-        ctx = ssl.create_default_context()
-        ctx.check_hostname = False
-        ctx.verify_mode = ssl.CERT_NONE
+        ctx = _ssl_scan_context()
         with socket.create_connection((domain, port_https), timeout=socket_timeout) as s:
             with ctx.wrap_socket(s, server_hostname=domain) as ssock:
                 cert_bin = ssock.getpeercert(binary_form=True)
@@ -390,9 +389,7 @@ def TargetSslCertRevocation(domain, socket_timeout, log=True):
     revocation_status = {}
     json_format = None
     try:
-        ctx = ssl.create_default_context()
-        ctx.check_hostname = False
-        ctx.verify_mode = ssl.CERT_NONE
+        ctx = _ssl_scan_context()
         with socket.create_connection((domain, port_https), timeout=socket_timeout) as s:
             with ctx.wrap_socket(s, server_hostname=domain) as ssock:
                 cert_bin = ssock.getpeercert(binary_form=True)
@@ -420,9 +417,7 @@ def TargetSslKeyReuse(domain, socket_timeout, known_keys=None, log=True):
     json_format = None
     if known_keys is None: known_keys = {}
     try:
-        ctx = ssl.create_default_context()
-        ctx.check_hostname = False
-        ctx.verify_mode = ssl.CERT_NONE
+        ctx = _ssl_scan_context()
         with socket.create_connection((domain, port_https), timeout=socket_timeout) as s:
             with ctx.wrap_socket(s, server_hostname=domain) as ssock:
                 cert_bin = ssock.getpeercert(binary_form=True)
@@ -439,9 +434,7 @@ def TargetSslRenegotiation(domain, socket_timeout, log=True):
     renegotiation_supported = None
     json_format = None
     try:
-        ctx = ssl.create_default_context()
-        ctx.check_hostname = False
-        ctx.verify_mode = ssl.CERT_NONE
+        ctx = _ssl_scan_context()
         with socket.create_connection((domain, port_https), timeout=socket_timeout) as s:
             with ctx.wrap_socket(s, server_hostname=domain) as ssock: renegotiation_supported = None
         if log and renegotiation_supported is not None: Add(f"SSL renegotiation supported: {white}{renegotiation_supported}")
@@ -453,7 +446,7 @@ def TargetSslCompression(domain, socket_timeout, log=True):
     compression = None
     json_format = None
     try:
-        ctx = ssl.create_default_context()
+        ctx = _ssl_scan_context()
         ctx.options |= ssl.OP_NO_COMPRESSION
         with socket.create_connection((domain, port_https), timeout=socket_timeout) as s:
             with ctx.wrap_socket(s, server_hostname=domain):
@@ -469,9 +462,7 @@ def TargetSslSessionResumption(domain, socket_timeout, log=True):
     resumption = None
     json_format = None
     try:
-        ctx = ssl.create_default_context()
-        ctx.check_hostname = False
-        ctx.verify_mode = ssl.CERT_NONE
+        ctx = _ssl_scan_context()
 
         with socket.create_connection((domain, port_https), timeout=socket_timeout) as s1:
             with ctx.wrap_socket(s1, server_hostname=domain) as ssock1:
@@ -1228,10 +1219,7 @@ def IpOsFingerprint(ip, open_ports, socket_timeout, log=True):
                 s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
                 s.settimeout(socket_timeout)
                 if port in [port_https, 8443]:
-                    import ssl
-                    ctx = ssl.create_default_context()
-                    ctx.check_hostname = False
-                    ctx.verify_mode = ssl.CERT_NONE
+                    ctx = _ssl_scan_context()
                     s = ctx.wrap_socket(s, server_hostname=ip)
                 s.connect((ip, port))
                 s.sendall(f"HEAD / HTTP/1.1\r\nHost: {ip}\r\nConnection: close\r\n\r\n".encode())
