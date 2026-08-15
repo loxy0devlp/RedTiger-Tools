@@ -36,11 +36,13 @@ def FetchUrlContent(session, url, http_timeout):
     return None
 
 def RenderFullPageWithRequests(state, session, target, http_timeout):
+    response = None
     try:
         response = session.get(target, timeout=http_timeout)
         response.raise_for_status()
     except requests.exceptions.HTTPError as e:
-        Error(f"HTTP error {response.status_code}: {white}{e}")
+        status_code = response.status_code if response is not None else "unknown"
+        Error(f"HTTP error {status_code}: {white}{e}")
         return None, None
     except requests.exceptions.RequestException as e:
         Error(f"Request error: {white}{e}")
@@ -146,19 +148,42 @@ def InlineAllResources(state, session, target, html_content, http_timeout):
 def WebsiteCloner(target=None, http_timeout=None, http_proxy=None, useragent=None, cookie=None):
     Title("Website Cloner")
 
-    if not target: target = Input("Target [-t] -> ")
+    if target is None:
+        if not has_cli_args:
+            target = Input("Target [-t] -> ")
+        else:
+            target = ""
+
     detect_target = DetectTarget(target)
 
-    if not detect_target in ["url", "url/page", "domain", "domain/page", "localhost:port", "localhost:port/page", "ip:port", "ip:port/page"]: ErrorUrlDomainLocalhostportIpport()
-    elif any(bad in target for bad in blacklists): ErrorTarget()
+    if detect_target not in ["url", "url/page", "domain", "domain/page", "localhost:port", "localhost:port/page", "ip:port", "ip:port/page"]: ErrorUrlDomainLocalhostportIpport()
+    elif target and any(bad in target for bad in blacklists): ErrorTarget()
 
     default_http_timeout = 60
 
-    if not has_cli_args: 
-        http_timeout = Input(f"Max HTTP timeout [-HT] (default: {str(default_http_timeout)}) -> ")
-        http_proxy   = Input(f"HTTP proxy [-HP] (default: {str(default_http_proxy)}) -> ")
-        useragent    = Input(f"User-Agent [-u] (for random: random, default: {str(default_useragent)}) -> ")
-        cookie       = Input(f"Cookie [-c] (default: {str(default_cookie)}) -> ")
+    if http_timeout is None:
+        if not has_cli_args:
+            http_timeout = Input(f"Max HTTP timeout [-HT] (default: {str(default_http_timeout)}) -> ")
+        else:
+            http_timeout = default_http_timeout
+
+    if http_proxy is None:
+        if not has_cli_args:
+            http_proxy = Input(f"HTTP proxy [-HP] (default: {str(default_http_proxy)}) -> ")
+        else:
+            http_proxy = default_http_proxy
+
+    if useragent is None:
+        if not has_cli_args:
+            useragent = Input(f"User-Agent [-u] (for random: random, default: {str(default_useragent)}) -> ")
+        else:
+            useragent = default_useragent
+
+    if cookie is None:
+        if not has_cli_args:
+            cookie = Input(f"Cookie [-c] (default: {str(default_cookie)}) -> ")
+        else:
+            cookie = default_cookie
 
     if not http_proxy: http_proxy = default_http_proxy
     if not useragent : useragent  = default_useragent
@@ -195,5 +220,8 @@ def WebsiteCloner(target=None, http_timeout=None, http_proxy=None, useragent=Non
 
     state["stop"] = True
     Info(f"Cloning completed: {white}{output}")
-    Continue()
-    Reset()
+
+    interactive_mode = not has_cli_args and all(v is None for v in (target, http_timeout, http_proxy, useragent, cookie))
+    if interactive_mode:
+        Continue()
+        Reset()
